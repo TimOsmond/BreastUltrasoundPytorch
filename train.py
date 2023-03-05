@@ -254,9 +254,9 @@ def visualize_model(model, num_images=6):
 
 model_ft = models.resnet18(pretrained=True)
 num_ftrs = model_ft.fc.in_features
-# Here the size of each output sample is set to 2 TODO - changed to 3 for three outputs.
+# Here the size of each output sample is set to 2 TODO - changed to 2 for three outputs.
 # Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
-model_ft.fc = nn.Linear(num_ftrs, len(class_names))  # TODO Changed to three outputs
+model_ft.fc = nn.Linear(num_ftrs, len(class_names))  # TODO Changed to x outputs
 
 model_ft = model_ft.to(device)
 
@@ -302,7 +302,7 @@ for param in model_conv.parameters():
 
 # Parameters of newly constructed modules have requires_grad=True by default
 num_ftrs = model_conv.fc.in_features
-model_conv.fc = nn.Linear(num_ftrs, len(class_names))  # TODO Changed to three outputs
+model_conv.fc = nn.Linear(num_ftrs, len(class_names))  # TODO Changed to x outputs is done
 
 model_conv = model_conv.to(device)
 

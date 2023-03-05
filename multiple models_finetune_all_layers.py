@@ -46,20 +46,22 @@ num_epochs is the number of training epochs we want to run, and feature_extract 
 are finetuning or feature extracting. If feature_extract = False, the model is finetuned and all model parameters 
 are updated. If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
 """
-# cnn_models = [resnet, alexnet, vgg, squeezenet, densenet, inception]
+
+# cnn_models = ["resnet", "alexnet", "vgg", "squeezenet", "densenet", "inception"]
+
 print("1. resnet\n2. alexnet\n3. vgg\n4. squeezenet\n5. densenet\n6. inception")
 choice = input("Enter the model you want to train: ")
 if choice == "1":
     model_name = "resnet"
-if choice == "2":
+elif choice == "2":
     model_name = "alexnet"
-if choice == "3":
+elif choice == "3":
     model_name = "vgg"
-if choice == "4":
+elif choice == "4":
     model_name = "squeezenet"
-if choice == "5":
+elif choice == "5":
     model_name = "densenet"
-if choice == "6":
+else:
     model_name = "inception"
 # Top level data directory. Here we assume the format of the directory conforms
 #   to the ImageFolder structure
@@ -69,17 +71,17 @@ data_dir = "./data/bus"
 # model_name = "squeezenet"
 
 # Number of classes in the dataset
-num_classes = 3  # TODO set to 3 classes for three folders
+num_classes = 2  # TODO set to 2 classes for 2 folders
 
 # Batch size for training (change depending on how much memory you have)
-batch_size = 4  # TODO set to 4 from 8
+batch_size = 8  # TODO set from 8
 
 # Number of epochs to train for
-num_epochs = 100
+num_epochs = 15  # TODO set from 15
 
 # Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
-feature_extract = True
+feature_extract = True  # TODO set to False from True
 
 """
  The train_model function handles the training and validation of a given model. As input, 
