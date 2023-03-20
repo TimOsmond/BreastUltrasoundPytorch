@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
+from neptune.utils import stringify_unsupported
 from torchvision import datasets, models, transforms
 import time
 import os
@@ -17,13 +18,13 @@ import copy
 import neptune
 from GPUtil import showUtilization as gpu_usage
 from numba import cuda
-from neptune.utils import stringify_unsupported
+from sklearn.metrics import f1_score
 
 loss_function = nn.CrossEntropyLoss
 optimizer_used = optim.SGD
-learning_rate = 0.01
 # Optimizer momentum
-momentum = 0.99
+MOMENTUM = 0.9
+LEARNING_RATE = 0.001
 
 
 # Clear memory
@@ -45,22 +46,22 @@ free_gpu_cache()
 print("PyTorch Version: ", torch.__version__)
 print("Torchvision Version: ", torchvision.__version__)
 
-print("\n1. resnet18\n2. alexnet\n3. vgg\n4. squeezenet\n5. densenet\n6. inception\n")
+print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg\n5. squeezenet\n6. densenet\n7. inception\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
     model_name = "resnet18"
 elif extraction_method == "2":
-    model_name = "alexnet"
+    model_name = "resnet152"
 elif extraction_method == "3":
-    model_name = "vgg"
+    model_name = "alexnet"
 elif extraction_method == "4":
-    model_name = "squeezenet"
+    model_name = "vgg"
 elif extraction_method == "5":
-    model_name = "densenet"
+    model_name = "squeezenet"
 elif extraction_method == "6":
+    model_name = "densenet"
+elif extraction_method == "7":
     model_name = "inception"
-else:
-    exit()
 
 # num_classes is the number of classes in the dataset
 # feature_extract is a boolean that defines if fine-tuning or feature extracting. If feature_extract = False,
@@ -73,12 +74,15 @@ print("\n1. Trained on full mammogram images, tested on ultrasound\n2. Trained o
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
     data_dir = "data/mammogram"
+    test_set = "data/mammogram/val"
     num_classes = 2
 elif extraction_method == "2":
     data_dir = "data/mgroi"
+    test_set = "data/mgroi/val"
     num_classes = 2
 elif extraction_method == "3":
     data_dir = "data/ultrasound"
+    test_set = "data/ultrasound/val"
     num_classes = 3
 else:
     exit()
@@ -88,7 +92,7 @@ num_epochs = int(input("Enter number of epochs: "))
 
 # Feature extracting. When False, fine-tune the whole model,
 # when True only update the reshaped layer params
-print("\n1. Train from scratch / fine-tune whole model\n2. Feature extract / reshape final layer parameters\n")
+print("\n1. Fine-tune whole model\n2. Feature extract / reshape final layer parameters\n")
 extraction_method = input("Enter the training required: ")
 if extraction_method == "1":
     feature_extract = False
@@ -99,7 +103,7 @@ else:
 
 # Start Neptune run to log data
 run = neptune.init_run(
-    project="tim-osmond/MG-BUS-resnet",
+    project="tim-osmond/Train-MG-Test-US",
     api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NzIyYmYxZC1iNjdmLTRmYzQtODBhYi0xN2FiYWIxMzUzOWEifQ==",
 )
 
@@ -109,15 +113,21 @@ params = {
     "model name": model_name,
     "data directory": data_dir,
     "batch size": batch_size,
-    "feature extract": feature_extract
+    "feature extract": feature_extract,
+    # Neptune does not support using static names so added as run commands as work around
+    "optimizer": stringify_unsupported(optimizer_used),
+    "criterion": stringify_unsupported(loss_function),
+    "learning rate": stringify_unsupported(LEARNING_RATE),
+    "momentum": stringify_unsupported(MOMENTUM),
 }
 run["parameters"] = params
 
 # Neptune does not support using static names so added as run commands as work around
-run["optimizer"] = stringify_unsupported(optimizer_used)
-run["criterion"] = stringify_unsupported(loss_function)
-run["learning rate"] = stringify_unsupported(learning_rate)
-run["momentum"] = stringify_unsupported(momentum)
+# run["optimizer"] = stringify_unsupported(optimizer_used)
+# run["criterion"] = stringify_unsupported(loss_function)
+# run["learning rate"] = stringify_unsupported(LEARNING_RATE)
+# run["momentum"] = stringify_unsupported(MOMENTUM)
+# run["F1 Score"] = stringify_unsupported(f1)
 
 
 # The train_model function takes a PyTorch model, a dictionary of dataloaders, a loss function, an optimizer,
@@ -127,6 +137,9 @@ run["momentum"] = stringify_unsupported(momentum)
 # specified number of epochs and after each epoch runs a full validation step. It also keeps track of the best
 # performing model (in terms of validation accuracy), and at the end of training returns the best performing model.
 # After each epoch, the training and validation accuracies are printed.
+# TODO check why epochs=25
+
+
 def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inception=False):
     since = time.time()
     val_acc_history = []
@@ -172,7 +185,6 @@ def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inceptio
                     else:
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
-
                     _, preds = torch.max(outputs, 1)
 
                     # backward + optimize only if in training phase
@@ -319,6 +331,14 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
+    elif model_name == "resnet152":
+        # Resnet152
+        model_ft = models.resnet152(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
+
     elif model_name == "alexnet":
         # Alexnet
         model_ft = models.alexnet(pretrained=use_pretrained)
@@ -396,11 +416,10 @@ data_transforms = {
 print("\nInitializing Datasets and Dataloaders...")
 
 # Create training and validation datasets
-trainset = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
-
-# Create training and validation trainloaders
-trainloader_dict = {
-    x: torch.utils.data.DataLoader(trainset[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+# Create training and validation dataloaders
+dataloaders_dict = {
+    x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in
     ['train', 'val']}
 
 # Detect if GPU available
@@ -435,19 +454,47 @@ else:
         if param.requires_grad == True:
             print("\t", name)
 
+# Observe that all parameters are being optimized
+optimizer = optimizer_used(params_to_update, lr=LEARNING_RATE, momentum=MOMENTUM)
+
 # Set up the loss fxn
 criterion = loss_function()
-
-# Observe that all parameters are being optimized
-optimizer = optimizer_used(params_to_update, lr=learning_rate, momentum=momentum)
 
 # Run the training and validation function for the set number of epochs.
 # The default learning rate is not optimal for all the models, so to achieve maximum accuracy it would be
 # necessary to tune for each model separately.
 
 # Train and evaluate
-model_ft, hist = train_model(model_ft, trainloader_dict, criterion, optimizer, epochs=num_epochs,
+model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
                              is_inception=(model_name == "inception"))
+
+total = 0
+correct = 0
+y_pred = []
+y_true = []
+
+# Iterate over data.
+with torch.no_grad():
+    for inputs, labels in dataloaders_dict['val']:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        predicted_outputs = model_ft(inputs)
+        _, predicted = torch.max(predicted_outputs, 1)
+        total += labels.size(0)
+        # print(total)
+        correct += (predicted == labels).sum().item()
+        # print(correct)
+        # f1 score
+        temp_true = labels.numpy()
+        temp_pred = predicted.numpy()
+        y_true += temp_true.tolist()
+        y_pred += temp_pred.tolist()
+
+test_acc = 100 * correct / total
+print('Accuracy: %d %%' % test_acc)
+f1 = f1_score(y_true, y_pred, average='macro')
+print(f'F1 Score = {f1:.4f}')
+run["f1_score"] = stringify_unsupported(f1)
 
 # Finish export to Neptune
 run.stop()
