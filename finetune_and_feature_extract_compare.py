@@ -1,5 +1,5 @@
 """
-Using a menu structure to command the use of different CNN models in training and validating from different directories.
+Using a menu structure to command the use of CNN models in training and validating from different directories.
 Training can be changed from fine-tuning to feature extraction and batch number and epochs entered.
 Neptune.ai is utilised for collecting data and drawing graphs.
 """
@@ -20,11 +20,14 @@ from GPUtil import showUtilization as gpu_usage
 from numba import cuda
 from sklearn.metrics import f1_score
 
-loss_function = nn.CrossEntropyLoss
-optimizer_used = optim.SGD
+LOSS_FUNCTION = nn.CrossEntropyLoss
+OPTIMIZER = optim.SGD
 # Optimizer momentum
-MOMENTUM = 0.9
-LEARNING_RATE = 0.001
+# TODO momentum original 0.9
+MOMENTUM = 0.99
+# TODO learning rate original 0.001
+# https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
+LEARNING_RATE = 0.0005
 
 
 # Clear memory
@@ -45,7 +48,9 @@ free_gpu_cache()
 
 print("PyTorch Version: ", torch.__version__)
 print("Torchvision Version: ", torchvision.__version__)
-
+print("*" * 104)
+print(f"Check settings for optimizer ({OPTIMIZER}), momentum ({MOMENTUM}) and learning rate ({LEARNING_RATE})")
+print("*" * 104)
 print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg\n5. squeezenet\n6. densenet\n7. inception\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
@@ -62,6 +67,8 @@ elif extraction_method == "6":
     model_name = "densenet"
 elif extraction_method == "7":
     model_name = "inception"
+else:
+    exit()
 
 # num_classes is the number of classes in the dataset
 # feature_extract is a boolean that defines if fine-tuning or feature extracting. If feature_extract = False,
@@ -115,19 +122,12 @@ params = {
     "batch size": batch_size,
     "feature extract": feature_extract,
     # Neptune does not support using static names so added as run commands as work around
-    "optimizer": stringify_unsupported(optimizer_used),
-    "criterion": stringify_unsupported(loss_function),
+    "optimizer": stringify_unsupported(OPTIMIZER),
+    "criterion": stringify_unsupported(LOSS_FUNCTION),
     "learning rate": stringify_unsupported(LEARNING_RATE),
     "momentum": stringify_unsupported(MOMENTUM),
 }
 run["parameters"] = params
-
-# Neptune does not support using static names so added as run commands as work around
-# run["optimizer"] = stringify_unsupported(optimizer_used)
-# run["criterion"] = stringify_unsupported(loss_function)
-# run["learning rate"] = stringify_unsupported(LEARNING_RATE)
-# run["momentum"] = stringify_unsupported(MOMENTUM)
-# run["F1 Score"] = stringify_unsupported(f1)
 
 
 # The train_model function takes a PyTorch model, a dictionary of dataloaders, a loss function, an optimizer,
@@ -455,10 +455,10 @@ else:
             print("\t", name)
 
 # Observe that all parameters are being optimized
-optimizer = optimizer_used(params_to_update, lr=LEARNING_RATE, momentum=MOMENTUM)
+optimizer = OPTIMIZER(params_to_update, lr=LEARNING_RATE, momentum=MOMENTUM)
 
 # Set up the loss fxn
-criterion = loss_function()
+criterion = LOSS_FUNCTION()
 
 # Run the training and validation function for the set number of epochs.
 # The default learning rate is not optimal for all the models, so to achieve maximum accuracy it would be
@@ -475,6 +475,7 @@ y_true = []
 
 # Iterate over data.
 with torch.no_grad():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     for inputs, labels in dataloaders_dict['val']:
         inputs = inputs.to(device)
         labels = labels.to(device)
