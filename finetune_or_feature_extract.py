@@ -9,7 +9,9 @@ from __future__ import division
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import torchvision
+import matplotlib.pyplot as plt
 from neptune.utils import stringify_unsupported
 from torchvision import datasets, models, transforms
 import time
@@ -18,33 +20,22 @@ import copy
 import neptune
 from GPUtil import showUtilization as gpu_usage
 from numba import cuda
-from sklearn.metrics import f1_score
+from torchvision.models import ResNet152_Weights, AlexNet_Weights, VGG11_BN_Weights, SqueezeNet1_0_Weights, \
+    Inception_V3_Weights, DenseNet121_Weights, ResNet18_Weights
+from torch.utils.data import DataLoader
 
 LOSS_FUNCTION = nn.CrossEntropyLoss
 OPTIMIZER = optim.SGD
-# Optimizer momentum
-# TODO momentum original 0.9
-MOMENTUM = 0.99
-# TODO learning rate original 0.001
+# Optimizer momentum - momentum original 0.9
+MOMENTUM = 0.9
+# learning rate original 0.001
 # https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 0.001
 
-
-# Clear memory
-def free_gpu_cache():
-    print("Initial GPU Usage")
-    gpu_usage()
-    torch.cuda.empty_cache()
-
-    cuda.select_device(0)
-    cuda.close()
-    cuda.select_device(0)
-
-    print("GPU Usage after emptying the cache")
-    gpu_usage()
-
-
-free_gpu_cache()
+# Detect if GPU available
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print("Device: ", device)
+print(f"GPU is available: {torch.cuda.is_available()}")
 
 print("PyTorch Version: ", torch.__version__)
 print("Torchvision Version: ", torchvision.__version__)
@@ -60,13 +51,13 @@ elif extraction_method == "2":
 elif extraction_method == "3":
     model_name = "alexnet"
 elif extraction_method == "4":
-    model_name = "vgg"
+    model_name = "vgg11"
 elif extraction_method == "5":
     model_name = "squeezenet"
 elif extraction_method == "6":
-    model_name = "densenet"
+    model_name = "densenet121"
 elif extraction_method == "7":
-    model_name = "inception"
+    model_name = "inceptionV3"
 else:
     exit()
 
@@ -75,21 +66,21 @@ else:
 # the model is fine-tuned and all model parameters are updated.
 # If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
 
-# Top level data directory. Format of the directory conforms must be same as the image folder structure
-print("\n1. Trained on full mammogram images, tested on ultrasound\n2. Trained on ROI mammogram images, tested on "
-      "ultrasound\n3. Trained on ultrasound images, tested on ultrasound\n")
+# Top level data_mammogram directory. Format of the directory conforms must be same as the image folder structure
+print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Trained on ROI mammogram images, tested on "
+      "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n")
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
-    data_dir = "data/mammogram"
-    test_set = "data/mammogram/val"
+    data_dir = "data_mammogram/mammogram"
+    test_set = "data_mammogram/mammogram/val"
     num_classes = 2
 elif extraction_method == "2":
-    data_dir = "data/mgroi"
-    test_set = "data/mgroi/val"
+    data_dir = "data_mammogram/mgroi"
+    test_set = "data_mammogram/mgroi/val"
     num_classes = 2
 elif extraction_method == "3":
-    data_dir = "data/ultrasound"
-    test_set = "data/ultrasound/val"
+    data_dir = "data_mammogram/ultrasound"
+    test_set = "data_mammogram/ultrasound/val"
     num_classes = 3
 else:
     exit()
@@ -108,7 +99,7 @@ elif extraction_method == "2":
 else:
     exit()
 
-# Start Neptune run to log data
+# Start Neptune run to log data_mammogram
 run = neptune.init_run(
     project="tim-osmond/Train-MG-Test-US",
     api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NzIyYmYxZC1iNjdmLTRmYzQtODBhYi0xN2FiYWIxMzUzOWEifQ==",
@@ -118,7 +109,7 @@ run = neptune.init_run(
 params = {
     "epochs": num_epochs,
     "model name": model_name,
-    "data directory": data_dir,
+    "data_mammogram directory": data_dir,
     "batch size": batch_size,
     "feature extract": feature_extract,
     # Neptune does not support using static names so added as run commands as work around
@@ -137,9 +128,8 @@ run["parameters"] = params
 # specified number of epochs and after each epoch runs a full validation step. It also keeps track of the best
 # performing model (in terms of validation accuracy), and at the end of training returns the best performing model.
 # After each epoch, the training and validation accuracies are printed.
+
 # TODO check why epochs=25
-
-
 def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inception=False):
     since = time.time()
     val_acc_history = []
@@ -186,11 +176,6 @@ def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inceptio
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
                     _, preds = torch.max(outputs, 1)
-
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
 
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
@@ -313,11 +298,10 @@ def set_parameter_requires_grad(model, feature_extracting):
     # model.fc = nn.Linear(2048, num_classes)
 
 
-# Notice, many of the models have similar output structures, but each must be handled slightly differently. Also,
-# check out the printed model architecture of the reshaped network and make sure the number of output features is the
+# Check out the printed model architecture of the reshaped network and make sure the number of output features is the
 # same as the number of classes in the dataset.
 
-def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
+def initialize_model(model_name, num_classes, feature_extract, use_pretrained):
     # Initialize these variables which will be set in this if statement. Each of these
     # variables is model specific.
     model_ft = None
@@ -325,7 +309,9 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
     if model_name == "resnet18":
         # Resnet18
-        model_ft = models.resnet18(pretrained=use_pretrained)
+        # model_ft = models.resnet18(pretrained=use_pretrained) # deprecated
+        model_ft = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
@@ -333,7 +319,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
     elif model_name == "resnet152":
         # Resnet152
-        model_ft = models.resnet152(pretrained=use_pretrained)
+        model_ft = models.resnet152(weights=ResNet152_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
@@ -341,15 +327,15 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
     elif model_name == "alexnet":
         # Alexnet
-        model_ft = models.alexnet(pretrained=use_pretrained)
+        model_ft = models.alexnet(weights=AlexNet_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
-    elif model_name == "vgg":
+    elif model_name == "vgg11":
         # VGG11_bn
-        model_ft = models.vgg11_bn(pretrained=use_pretrained)
+        model_ft = models.vgg11_bn(weights=VGG11_BN_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs, num_classes)
@@ -357,24 +343,24 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
     elif model_name == "squeezenet":
         # Squeezenet
-        model_ft = models.squeezenet1_0(pretrained=use_pretrained)
+        model_ft = models.squeezenet1_0(weights=SqueezeNet1_0_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         model_ft.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
         model_ft.num_classes = num_classes
         input_size = 224
 
-    elif model_name == "densenet":
+    elif model_name == "densenet121":
         # Densenet
-        model_ft = models.densenet121(pretrained=use_pretrained)
+        model_ft = models.densenet121(weights=DenseNet121_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
-    elif model_name == "inception":
+    elif model_name == "inceptionV3":
         # Inception v3
         # Be careful, expects (299,299) sized images and has auxiliary output
-        model_ft = models.inception_v3(pretrained=use_pretrained)
+        model_ft = models.inception_v3(weights=Inception_V3_Weights.DEFAULT)
         set_parameter_requires_grad(model_ft, feature_extract)
         # Handle the auxilary net
         num_ftrs = model_ft.AuxLogits.fc.in_features
@@ -393,8 +379,8 @@ model_ft, input_size = initialize_model(model_name, num_classes, feature_extract
 # Print the model just instantiated
 print(model_ft)
 
-# Initialize the data transforms, image datasets, and the dataloaders.
-# #Notice, the models were pretrained with the hard-coded normalization values, as described here.
+# Initialize the transforms, image datasets, and the dataloaders.
+# Notice, the models were pretrained with the hard-coded normalization values, as described here.
 
 # Data augmentation and normalization for training
 # Just normalization for validation
@@ -417,13 +403,13 @@ print("\nInitializing Datasets and Dataloaders...")
 
 # Create training and validation datasets
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+
 # Create training and validation dataloaders
 dataloaders_dict = {
-    x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in
-    ['train', 'val']}
+    x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4,
+                                   drop_last=True) for x in ['train', 'val']}
 
-# Detect if GPU available
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 # Create an optimizer that only updates the desired parameters. After loading the pretrained model,
 # but before reshaping, if feature_extract=True we manually set all the parameter’s. requires_grad attributes to False.
@@ -468,34 +454,23 @@ criterion = LOSS_FUNCTION()
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
                              is_inception=(model_name == "inception"))
 
-total = 0
-correct = 0
-y_pred = []
-y_true = []
+# send to neptune
+# run["f1_score"] = stringify_unsupported("f1")
 
-# Iterate over data.
-with torch.no_grad():
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    for inputs, labels in dataloaders_dict['val']:
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-        predicted_outputs = model_ft(inputs)
-        _, predicted = torch.max(predicted_outputs, 1)
-        total += labels.size(0)
-        # print(total)
-        correct += (predicted == labels).sum().item()
-        # print(correct)
-        # f1 score
-        temp_true = labels.numpy()
-        temp_pred = predicted.numpy()
-        y_true += temp_true.tolist()
-        y_pred += temp_pred.tolist()
+# Save the current model
+model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
+model_scripted.save('saved_finetune.pt')  # Save
 
-test_acc = 100 * correct / total
-print('Accuracy: %d %%' % test_acc)
-f1 = f1_score(y_true, y_pred, average='macro')
-print(f'F1 Score = {f1:.4f}')
-run["f1_score"] = stringify_unsupported(f1)
+# Create and view statistics for the model
+scores = pd.DataFrame(index=['negative', 'positive', 'average'], columns=['precision', 'recall', 'F1-Score'])
+for i, label in enumerate(["negative", "positive"]):
+    p = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
+    r = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
+    scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
+scores.loc['average'] = scores.mean().values
+print()
+print(scores)
+print()
 
 # Finish export to Neptune
 run.stop()
