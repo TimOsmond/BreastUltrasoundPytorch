@@ -6,8 +6,10 @@ Neptune.ai is utilised for collecting data_mammogram and drawing graphs.
 
 from __future__ import print_function
 from __future__ import division
+import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 import torchvision
 from matplotlib import pyplot as plt
 import neptune
@@ -20,10 +22,12 @@ from GPUtil import showUtilization as gpu_usage
 from numba import cuda
 from torchvision.models import ResNet152_Weights, AlexNet_Weights, VGG11_BN_Weights, SqueezeNet1_0_Weights, \
     Inception_V3_Weights, DenseNet121_Weights, ResNet18_Weights
-import torch
 from torch.utils.data import DataLoader
 import pandas as pd
 import seaborn as sns
+from neptune_login import api_token
+
+api = api_token
 
 LOSS_FUNCTION = nn.CrossEntropyLoss
 OPTIMIZER = optim.SGD
@@ -49,9 +53,12 @@ def free_gpu_cache():
 
 
 free_gpu_cache()
+
 # Detect if GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Device: ", device)
+print(f"Devices available: {torch.cuda.device_count()}")
+print(f"Devices available: {torch.cuda.get_device_name(0)}")
 print(f"GPU is available: {torch.cuda.is_available()}")
 
 print("PyTorch Version: ", torch.__version__)
@@ -120,11 +127,10 @@ num_epochs = int(input("Enter number of epochs: "))
 # when True only update the reshaped layer params
 feature_extract = True
 
-
 # Start Neptune run to log data_mammogram
 run = neptune.init_run(
     project="tim-osmond/Feature-Extract-US",
-    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NzIyYmYxZC1iNjdmLTRmYzQtODBhYi0xN2FiYWIxMzUzOWEifQ==",
+    api_token=api,
 )
 
 # Neptune parameters to log
@@ -478,6 +484,10 @@ criterion = LOSS_FUNCTION()
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
                              is_inception=(model_name == "inception"))
 
+# Save the current model
+model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
+model_scripted.save('feature.pt')  # Save
+
 # **********************************************************************************************************************
 # Create and view statistics for the model
 confusion_matrix = torch.zeros(num_classes, num_classes)
@@ -496,7 +506,11 @@ for i, label in enumerate(["negative", "positive"]):
     r = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
     scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
 scores.loc['average'] = scores.mean().values
-print()
+for i, label in enumerate(["positive"]):
+    precision = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
+    recall = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
+    f1 = scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
+print(f"\nOverall...\nPrecision: {precision:.2f}\nRecall: {recall:.2f}\nF1: {f1:.2f}\n")
 print(scores)
 print()
 
@@ -515,14 +529,12 @@ plt.ylabel('True label')
 plt.xlabel('Predicted label')
 plt.show()
 # **********************************************************************************************************************
-
-
-# send to neptune
-# run["f1_score"] = stringify_unsupported("f1")
-
-# Save the current model
-model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('saved_feature_extract.pt')  # Save
+# Export to Neptune
+run["confusion_matrix"] = stringify_unsupported(confusion_matrix)
+run["scores"] = stringify_unsupported(scores)
+run["precision"] = stringify_unsupported(precision)
+run["recall"] = stringify_unsupported(recall)
+run["F1"] = stringify_unsupported(f1)
 
 # Finish export to Neptune
 run.stop()

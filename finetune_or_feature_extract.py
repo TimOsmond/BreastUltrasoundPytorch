@@ -9,7 +9,6 @@ from __future__ import division
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 import torchvision
 import matplotlib.pyplot as plt
 from neptune.utils import stringify_unsupported
@@ -18,11 +17,14 @@ import time
 import os
 import copy
 import neptune
-from GPUtil import showUtilization as gpu_usage
-from numba import cuda
 from torchvision.models import ResNet152_Weights, AlexNet_Weights, VGG11_BN_Weights, SqueezeNet1_0_Weights, \
     Inception_V3_Weights, DenseNet121_Weights, ResNet18_Weights
 from torch.utils.data import DataLoader
+import pandas as pd
+import seaborn as sns
+from neptune_login import api_token
+
+api = api_token
 
 LOSS_FUNCTION = nn.CrossEntropyLoss
 OPTIMIZER = optim.SGD
@@ -101,8 +103,8 @@ else:
 
 # Start Neptune run to log data_mammogram
 run = neptune.init_run(
-    project="tim-osmond/Train-MG-Test-US",
-    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NzIyYmYxZC1iNjdmLTRmYzQtODBhYi0xN2FiYWIxMzUzOWEifQ==",
+    project="tim-osmond/Retrain-ROI-MG-Test-ROI-MG",
+    api_token=api,
 )
 
 # Neptune parameters to log
@@ -116,7 +118,7 @@ params = {
     "optimizer": stringify_unsupported(OPTIMIZER),
     "criterion": stringify_unsupported(LOSS_FUNCTION),
     "learning rate": stringify_unsupported(LEARNING_RATE),
-    "momentum": stringify_unsupported(MOMENTUM),
+    "momentum": stringify_unsupported(MOMENTUM)
 }
 run["parameters"] = params
 
@@ -454,23 +456,57 @@ criterion = LOSS_FUNCTION()
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
                              is_inception=(model_name == "inception"))
 
-# send to neptune
-# run["f1_score"] = stringify_unsupported("f1")
-
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('saved_finetune.pt')  # Save
+model_scripted.save('finetune.pt')  # Save
 
+# **********************************************************************************************************************
 # Create and view statistics for the model
+confusion_matrix = torch.zeros(num_classes, num_classes)
+with torch.no_grad():
+    for i, (inputs, labels) in enumerate(dataloaders_dict['val']):
+        inputs = inputs.to(device)
+        classes = labels.to(device)
+        outputs = model_ft(inputs)
+        _, preds = torch.max(outputs, dim=1)
+        for t, p in zip(labels.view(-1), preds.view(-1)):
+            confusion_matrix[t.long(), p.long()] += 1
+
 scores = pd.DataFrame(index=['negative', 'positive', 'average'], columns=['precision', 'recall', 'F1-Score'])
 for i, label in enumerate(["negative", "positive"]):
     p = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
     r = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
     scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
 scores.loc['average'] = scores.mean().values
-print()
+for i, label in enumerate(["positive"]):
+    precision = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
+    recall = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
+    f1 = scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
+print(f"\nOverall...\nPrecision: {precision:.2f}\nRecall: {recall:.2f}\nF1: {f1:.2f}\n")
 print(scores)
 print()
+
+label2class = {0: 'negative', 1: 'positive'}
+
+plt.figure(figsize=(15, 10))
+sns.set(font_scale=1.8)
+
+class_names = list(label2class.values())
+df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
+heatmap = sns.heatmap(df_cm, annot=True, fmt="d")
+
+heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
+heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+plt.show()
+# **********************************************************************************************************************
+# Export to Neptune
+run["confusion_matrix"] = stringify_unsupported(confusion_matrix)
+run["scores"] = stringify_unsupported(scores)
+run["precision"] = stringify_unsupported(precision)
+run["recall"] = stringify_unsupported(recall)
+run["F1"] = stringify_unsupported(f1)
 
 # Finish export to Neptune
 run.stop()
