@@ -1,3 +1,6 @@
 data_mammogram
 data_ultrasound
 .neptune
+saved_feature_extract.pt
+saved_finetune.pt
+
