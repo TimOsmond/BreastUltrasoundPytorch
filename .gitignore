@@ -1,5 +1,9 @@
 data_mammogram/*
 data_ultrasound/*
+confusion_matrix.png
+finetune.pt
+first.pt
+second.pt
 .neptune
 saved_feature_extract.pt
 saved_finetune.pt
