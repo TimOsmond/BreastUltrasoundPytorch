@@ -14,6 +14,9 @@ import torchvision
 import matplotlib.pyplot as plt
 from neptune.utils import stringify_unsupported
 from torchvision import datasets, models, transforms
+from GPUtil import showUtilization as gpu_usage
+from numba import cuda
+from torchvision import pydicom
 import time
 import os
 import copy
@@ -34,6 +37,23 @@ MOMENTUM = 0.9
 # learning rate original 0.001
 # https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
 LEARNING_RATE = 0.001
+
+
+# Clear memory
+def free_gpu_cache():
+    print("Initial GPU Usage")
+    gpu_usage()
+    torch.cuda.empty_cache()
+
+    cuda.select_device(0)
+    cuda.close()
+    cuda.select_device(0)
+
+    print("GPU Usage after emptying the cache")
+    gpu_usage()
+
+
+free_gpu_cache()
 
 # Detect if GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -497,6 +517,7 @@ heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='rig
 heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
 plt.ylabel('True label')
 plt.xlabel('Predicted label')
+plt.savefig('confusion_matrix.png')
 # plt.show()
 # **********************************************************************************************************************
 

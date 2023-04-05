@@ -9,3 +9,4 @@ saved_feature_extract.pt
 saved_finetune.pt
 neptune_login.py
 .neptune/*
+mammogram_dicom/*
