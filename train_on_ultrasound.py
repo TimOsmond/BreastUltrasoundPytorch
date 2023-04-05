@@ -59,7 +59,6 @@ print("Device: ", device)
 print(f"Devices available: {torch.cuda.device_count()}")
 print(f"Devices available: {torch.cuda.get_device_name(0)}")
 print(f"GPU is available: {torch.cuda.is_available()}")
-
 print("PyTorch Version: ", torch.__version__)
 print("Torchvision Version: ", torchvision.__version__)
 print("*" * 104)

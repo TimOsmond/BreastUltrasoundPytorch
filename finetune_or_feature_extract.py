@@ -39,7 +39,6 @@ LEARNING_RATE = 0.001
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Device: ", device)
 print(f"GPU is available: {torch.cuda.is_available()}")
-
 print("PyTorch Version: ", torch.__version__)
 print("Torchvision Version: ", torchvision.__version__)
 print("*" * 104)
@@ -411,8 +410,6 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transf
 dataloaders_dict = {
     x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4,
                                    drop_last=True) for x in ['train', 'val']}
-
-
 
 # Create an optimizer that only updates the desired parameters. After loading the pretrained model,
 # but before reshaping, if feature_extract=True we manually set all the parameter’s. requires_grad attributes to False.
