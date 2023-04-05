@@ -9,7 +9,6 @@ from __future__ import division
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 import torchvision
 from matplotlib import pyplot as plt
 import neptune
@@ -486,7 +485,7 @@ model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, e
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('feature.pt')  # Save
+model_scripted.save('second.pt')  # Save
 
 # **********************************************************************************************************************
 # Create and view statistics for the model
@@ -522,19 +521,21 @@ sns.set(font_scale=1.8)
 class_names = list(label2class.values())
 df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
 heatmap = sns.heatmap(df_cm, annot=True, fmt="d")
-
 heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
 heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
 plt.ylabel('True label')
 plt.xlabel('Predicted label')
-plt.show()
+plt.savefig('confusion_matrix.png')
+# plt.show()
 # **********************************************************************************************************************
+
 # Export to Neptune
-run["confusion_matrix"] = stringify_unsupported(confusion_matrix)
-run["scores"] = stringify_unsupported(scores)
-run["precision"] = stringify_unsupported(precision)
-run["recall"] = stringify_unsupported(recall)
-run["F1"] = stringify_unsupported(f1)
+run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
+run["val/conf_matrix"].upload("confusion_matrix.png")  # Upload confusion matrix image to Neptune
+run["results/scores"] = stringify_unsupported(scores)
+run["results/precision"] = stringify_unsupported(precision)
+run["results/recall"] = stringify_unsupported(recall)
+run["results/F1"] = stringify_unsupported(f1)
 
 # Finish export to Neptune
 run.stop()
