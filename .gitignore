@@ -1,5 +1,5 @@
-data_mammogram/*
-data_ultrasound/*
+data_mammogram/
+data_ultrasound/
 confusion_matrix.png
 finetune.pt
 first.pt
@@ -9,4 +9,4 @@ saved_feature_extract.pt
 saved_finetune.pt
 neptune_login.py
 .neptune/*
-mammogram_dicom/*
+mammogram_dicom/
