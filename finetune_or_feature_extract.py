@@ -9,7 +9,6 @@ from __future__ import division
 import torch  # for pytorch
 import torch.nn as nn  # for neural network
 import torch.optim as optim  # for optimizer
-from neptune.types import File
 import torchvision  # for vision
 import matplotlib.pyplot as plt  # for plotting
 import neptune  # for neptune logging online
@@ -40,19 +39,18 @@ MOMENTUM = 0.9
 # https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
 LEARNING_RATE = 0.001
 
-# Convert dicom images from the dataset TODO
+# Convert dicom images from the dataset to jpg or png format
 convert = input("Convert DICOM images to PNG or JPG format? Enter Y or N: ").upper()
 
 
 def convert_dicom(dcm_path, new_image_path):
     images_path = os.listdir(dcm_path)
+    print(new_image_path)
     for n, image in enumerate(images_path):
         ds = dicom.dcmread(os.path.join(dcm_path, image))
         pixel_array_numpy = ds.pixel_array
-        if not PNG:
-            image = image.replace('.dcm', '.jpg')
-        else:
-            image = image.replace('.dcm', '.png')
+        image = image.replace('.dcm', '.png')
+
         # Create the new folder if it doesn't exist
         Path(new_image_path).mkdir(parents=True, exist_ok=True)
         cv2.imwrite(os.path.join(new_image_path, image), pixel_array_numpy)
@@ -62,30 +60,27 @@ def convert_dicom(dcm_path, new_image_path):
 
 if convert == "Y":
     data_dir = input("Enter the path to the dataset folder: ")
-    file_type = input("Enter the file type to convert to\n1 PNG\n2 JPG ")
-    # make it True if PNG format is required
-    if file_type == "1":
-        PNG = True
-    else:
-        PNG = False
 
     # Specify the .dcm folder path
     train_normal = data_dir + "/train/normal"
     # Specify the output jpg/png folder path
-    path_train_normal = data_dir + "/converted_image/train/normal"
+    path_train_normal = data_dir + "/converted_images/train/normal"
     convert_dicom(train_normal, path_train_normal)
 
     train_malignant = data_dir + "/train/malignant"
-    path_train_malignant = data_dir + "/converted_image/train/malignant"
+    path_train_malignant = data_dir + "/converted_images/train/malignant"
     convert_dicom(train_malignant, path_train_malignant)
 
     val_normal = data_dir + "/val/normal"
-    path_val_normal = data_dir + "/converted_image/val/normal"
+    path_val_normal = data_dir + "/converted_images/val/normal"
     convert_dicom(val_normal, path_val_normal)
 
     val_malignant = data_dir + "/val/malignant"
-    path_val_malignant = data_dir + "/converted_image/val/malignant"
+    path_val_malignant = data_dir + "/converted_images/val/malignant"
     convert_dicom(val_malignant, path_val_malignant)
+
+    print("DICOM images converted to PNG format. Re-run code for training and validation.")
+    exit()
 
 
 # Clear memory
@@ -142,11 +137,11 @@ print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Train
       "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n")
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
-    data_dir = "data_mammogram/mammogram/converted_image"
+    data_dir = "data_mammogram/mammogram/converted_images"
     num_classes = 2
 elif extraction_method == "2":
     # DICOM medical images
-    data_dir = "data_mammogram/mgroi/converted_image"
+    data_dir = "data_mammogram/mgroi/converted_images"
     num_classes = 2
 elif extraction_method == "3":
     data_dir = "data_ultrasound"
