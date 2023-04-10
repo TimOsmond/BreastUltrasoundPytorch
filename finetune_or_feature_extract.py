@@ -72,19 +72,19 @@ if convert == "Y":
     # Specify the .dcm folder path
     train_normal = data_dir + "/train/normal"
     # Specify the output jpg/png folder path
-    path_train_normal = data_dir + "/jpg/train/normal"
+    path_train_normal = data_dir + "/converted_image/train/normal"
     convert_dicom(train_normal, path_train_normal)
 
     train_malignant = data_dir + "/train/malignant"
-    path_train_malignant = data_dir + "/jpg/train/malignant"
+    path_train_malignant = data_dir + "/converted_image/train/malignant"
     convert_dicom(train_malignant, path_train_malignant)
 
     val_normal = data_dir + "/val/normal"
-    path_val_normal = data_dir + "/jpg/val/normal"
+    path_val_normal = data_dir + "/converted_image/val/normal"
     convert_dicom(val_normal, path_val_normal)
 
     val_malignant = data_dir + "/val/malignant"
-    path_val_malignant = data_dir + "/jpg/val/malignant"
+    path_val_malignant = data_dir + "/converted_image/val/malignant"
     convert_dicom(val_malignant, path_val_malignant)
 
 
@@ -142,11 +142,11 @@ print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Train
       "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n")
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
-    data_dir = "data_mammogram/mammogram/jpg"
+    data_dir = "data_mammogram/mammogram/converted_image"
     num_classes = 2
 elif extraction_method == "2":
     # DICOM medical images
-    data_dir = "data_mammogram/mgroi/jpg"
+    data_dir = "data_mammogram/mgroi/converted_image"
     num_classes = 2
 elif extraction_method == "3":
     data_dir = "data_ultrasound"
