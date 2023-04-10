@@ -17,7 +17,9 @@ from neptune.utils import stringify_unsupported  # for neptune utilities
 from torchvision import datasets, models, transforms
 from GPUtil import showUtilization as gpu_usage
 from numba import cuda  # for clearing GPU memory
-import pydicom  # for reading dicom files
+import pydicom as dicom  # for reading dicom files
+import cv2  # for DICOM image processing
+from pathlib import Path  # for making file paths
 import time
 import os
 import copy
@@ -38,10 +40,57 @@ MOMENTUM = 0.9
 # https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
 LEARNING_RATE = 0.001
 
+# Convert dicom images from the dataset TODO
+convert = input("Convert DICOM images to PNG or JPG format? Enter Y or N: ").upper()
+
+
+def convert_dicom(dcm_path, new_image_path):
+    images_path = os.listdir(dcm_path)
+    for n, image in enumerate(images_path):
+        ds = dicom.dcmread(os.path.join(dcm_path, image))
+        pixel_array_numpy = ds.pixel_array
+        if not PNG:
+            image = image.replace('.dcm', '.jpg')
+        else:
+            image = image.replace('.dcm', '.png')
+        # Create the new folder if it doesn't exist
+        Path(new_image_path).mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(os.path.join(new_image_path, image), pixel_array_numpy)
+        if n % 50 == 0:
+            print('{} image converted'.format(n))
+
+
+if convert == "Y":
+    data_dir = input("Enter the path to the dataset folder: ")
+    file_type = input("Enter the file type to convert to\n1 PNG\n2 JPG ")
+    # make it True if PNG format is required
+    if file_type == "1":
+        PNG = True
+    else:
+        PNG = False
+
+    # Specify the .dcm folder path
+    train_normal = data_dir + "/train/normal"
+    # Specify the output jpg/png folder path
+    path_train_normal = data_dir + "/jpg/train/normal"
+    convert_dicom(train_normal, path_train_normal)
+
+    train_malignant = data_dir + "/train/malignant"
+    path_train_malignant = data_dir + "/jpg/train/malignant"
+    convert_dicom(train_malignant, path_train_malignant)
+
+    val_normal = data_dir + "/val/normal"
+    path_val_normal = data_dir + "/jpg/val/normal"
+    convert_dicom(val_normal, path_val_normal)
+
+    val_malignant = data_dir + "/val/malignant"
+    path_val_malignant = data_dir + "/jpg/val/malignant"
+    convert_dicom(val_malignant, path_val_malignant)
+
 
 # Clear memory
 def free_gpu_cache():
-    print("Initial GPU Usage")
+    print("\nInitial GPU Usage")
     gpu_usage()
     torch.cuda.empty_cache()
 
@@ -93,11 +142,11 @@ print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Train
       "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n")
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
-    data_dir = "data_mammogram/mammogram"
+    data_dir = "data_mammogram/mammogram/jpg"
     num_classes = 2
 elif extraction_method == "2":
     # DICOM medical images
-    data_dir = "data_mammogram/mgroi"
+    data_dir = "data_mammogram/mgroi/jpg"
     num_classes = 2
 elif extraction_method == "3":
     data_dir = "data_ultrasound"
