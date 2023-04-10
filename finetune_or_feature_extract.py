@@ -6,27 +6,27 @@ Neptune.ai is utilised for collecting data and drawing graphs.
 
 from __future__ import print_function
 from __future__ import division
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import torch  # for pytorch
+import torch.nn as nn  # for neural network
+import torch.optim as optim  # for optimizer
 from neptune.types import File
-import torchvision
-import matplotlib.pyplot as plt
-from neptune.utils import stringify_unsupported
+import torchvision  # for vision
+import matplotlib.pyplot as plt  # for plotting
+import neptune  # for neptune logging online
+from neptune.utils import stringify_unsupported  # for neptune utilities
 from torchvision import datasets, models, transforms
 from GPUtil import showUtilization as gpu_usage
-from numba import cuda
-from torchvision import pydicom
+from numba import cuda  # for clearing GPU memory
+import pydicom  # for reading dicom files
 import time
 import os
 import copy
-import neptune
 from torchvision.models import ResNet152_Weights, AlexNet_Weights, VGG11_BN_Weights, SqueezeNet1_0_Weights, \
-    Inception_V3_Weights, DenseNet121_Weights, ResNet18_Weights
+    Inception_V3_Weights, DenseNet121_Weights, ResNet18_Weights  # for model weights
 from torch.utils.data import DataLoader
-import pandas as pd
-import seaborn as sns
-from neptune_login import api_token
+import pandas as pd  # for dataframes
+import seaborn as sns  # for plotting
+from neptune_login import api_token  # for neptune
 
 api = api_token
 
@@ -64,7 +64,7 @@ print("Torchvision Version: ", torchvision.__version__)
 print("*" * 104)
 print(f"Check settings for optimizer ({OPTIMIZER}), momentum ({MOMENTUM}) and learning rate ({LEARNING_RATE})")
 print("*" * 104)
-print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg11\n5. squeezenet\n6. densenet\n7. inception\n")
+print("\n1. resnet 18\n2. resnet 152\n3. alexnet\n4. vgg11\n5. squeezenet v1\n6. densenet 121\n7. inception v3\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
     model_name = "resnet18"
@@ -79,7 +79,7 @@ elif extraction_method == "5":
 elif extraction_method == "6":
     model_name = "densenet121"
 elif extraction_method == "7":
-    model_name = "inceptionV3"
+    model_name = "inception"
 else:
     exit()
 
@@ -94,15 +94,13 @@ print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Train
 extraction_method = input("Enter the image training type required: ")
 if extraction_method == "1":
     data_dir = "data_mammogram/mammogram"
-    # test_set = "data_mammogram/mammogram/val"
     num_classes = 2
 elif extraction_method == "2":
+    # DICOM medical images
     data_dir = "data_mammogram/mgroi"
-    # test_set = "data_mammogram/mgroi/val"
     num_classes = 2
 elif extraction_method == "3":
     data_dir = "data_ultrasound"
-    # test_set = "data_mammogram/ultrasound/val"
     num_classes = 2
 else:
     exit()
@@ -512,7 +510,6 @@ sns.set(font_scale=1.8)
 class_names = list(label2class.values())
 df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
 heatmap = sns.heatmap(df_cm, annot=True, fmt="d")
-
 heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
 heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
 plt.ylabel('True label')
@@ -522,13 +519,12 @@ plt.savefig('confusion_matrix.png')
 # **********************************************************************************************************************
 
 # Export to Neptune
-run["confusion_matrix"] = stringify_unsupported(confusion_matrix)
+run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
 run["val/conf_matrix"].upload("confusion_matrix.png")  # Upload confusion matrix image to Neptune
-run["confusion_matrix"].upload(File.as_image(confusion_matrix))
-run["scores"] = stringify_unsupported(scores)
-run["precision"] = stringify_unsupported(precision)
-run["recall"] = stringify_unsupported(recall)
-run["F1"] = stringify_unsupported(f1)
+run["results/scores"] = stringify_unsupported(scores)
+run["results/precision"] = stringify_unsupported(precision)
+run["results/recall"] = stringify_unsupported(recall)
+run["results/F1"] = stringify_unsupported(f1)
 
 # Finish export to Neptune
 run.stop()
