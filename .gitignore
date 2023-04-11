@@ -1,5 +1,6 @@
 data_mammogram/
 data_ultrasound/
+hymenoptera_data/
 confusion_matrix.png
 .neptune/
 neptune_login.py
