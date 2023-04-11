@@ -40,7 +40,7 @@ MOMENTUM = 0.9
 LEARNING_RATE = 0.001
 
 # Convert dicom images from the dataset to jpg or png format
-convert = input("Convert DICOM images to PNG or JPG format? Enter Y or N: ").upper()
+convert = input("Convert DICOM images to PNG format? Enter Y or N: ").upper()
 
 
 def convert_dicom(dcm_path, new_image_path):
@@ -179,28 +179,28 @@ def load_neptune_run(project_folder):
 
 
 # Save data to correct Neptune project
-if training_method == 1 and extraction_method == "1":
+if training_method == "1" and extraction_method == "1":
     load_neptune_run("tim-osmond/FTMG")
 
-elif training_method == 1 and extraction_method == "2":
-    load_neptune_run("tim-osmond/FEFMG")
+elif training_method == "1" and extraction_method == "2":
+    load_neptune_run("tim-osmond/FEMG")
 
-elif training_method == 2 and extraction_method == "1":
-    load_neptune_run("tim-osmond/FTROI")
+elif training_method == "2" and extraction_method == "1":
+    load_neptune_run("tim-osmond/FTMGROI")
 
-elif training_method == 2 and extraction_method == "2":
-    load_neptune_run("tim-osmond/FEROI")
+elif training_method == "2" and extraction_method == "2":
+    load_neptune_run("tim-osmond/FEMGROI")
 
-elif training_method == 3 and extraction_method == "1":
+elif training_method == "3" and extraction_method == "1":
     load_neptune_run("tim-osmond/FTUS")
 
-elif training_method == 3 and extraction_method == "2":
+elif training_method == "3" and extraction_method == "2":
     load_neptune_run("tim-osmond/FEUS")
 
-elif training_method == 4 and extraction_method == "1":
+elif training_method == "4" and extraction_method == "1":
     load_neptune_run("tim-osmond/FTTEST")
 
-elif training_method == 4 and extraction_method == "2":
+elif training_method == "4" and extraction_method == "2":
     load_neptune_run("tim-osmond/FETEST")
 
 else:
@@ -291,12 +291,12 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
             # Neptune stats
             if phase == 'train':
-                run["training loss"].append(epoch_loss)
-                run["training accuracy"].append(epoch_acc)
+                run["stats/training loss"].append(epoch_loss)
+                run["stats/training accuracy"].append(epoch_acc)
 
             if phase == 'val':
-                run["validation loss"].append(epoch_loss)
-                run["validation accuracy"].append(epoch_acc)
+                run["stats/validation loss"].append(epoch_loss)
+                run["stats/validation accuracy"].append(epoch_acc)
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
@@ -558,7 +558,7 @@ model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, n
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('training_data.pt')  # Save trained model
+model_scripted.save('training_data1.pt')  # Save trained model
 
 # **********************************************************************************************************************
 # Create and view statistics for the model
@@ -608,7 +608,7 @@ run["results/scores"] = stringify_unsupported(scores)
 run["results/precision"] = stringify_unsupported(precision)
 run["results/recall"] = stringify_unsupported(recall)
 run["results/F1"] = stringify_unsupported(f1)
-run["data/saved_model"].upload("training_data.pt")  # Upload saved model to Neptune
+run["data/saved_model"].upload("training_data1.pt")  # Upload saved model to Neptune
 
 # Finish export to Neptune
 run.stop()
