@@ -65,9 +65,12 @@ print("*" * 104)
 print(f"Check settings for optimizer ({OPTIMIZER}), momentum ({MOMENTUM}) and learning rate ({LEARNING_RATE})")
 print("*" * 104)
 print()
-load_model_name = input("Enter model name to load: ")
+# load_model_name = input("Enter model name to load: ")
+#automatically load saved model name from initial run
+load_model_name = "training_data1.pt"
+print(f"Model {load_model_name} loaded")
 print()
-print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg\n5. squeezenet\n6. densenet\n7. inception\n")
+print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg11\n5. squeezenet\n6. densenet\n7. inception\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
     model_name = "resnet18"
@@ -127,7 +130,7 @@ feature_extract = True
 
 # Start Neptune run to log data_mammogram
 run = neptune.init_run(
-    project="tim-osmond/Feature-Extract-US",
+    project="tim-osmond/FEUS",
     api_token=api,
 )
 
@@ -155,7 +158,6 @@ run["parameters"] = params
 # performing model (in terms of validation accuracy), and at the end of training returns the best performing model.
 # After each epoch, the training and validation accuracies are printed.
 
-# TODO check why epochs=25
 def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inception=False):
     since = time.time()
     val_acc_history = []
@@ -203,6 +205,11 @@ def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inceptio
                         loss = criterion(outputs, labels)
                     _, preds = torch.max(outputs, 1)
 
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
@@ -212,12 +219,12 @@ def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inceptio
 
             # Neptune stats
             if phase == 'train':
-                run["training loss"].append(epoch_loss)
-                run["training accuracy"].append(epoch_acc)
+                run["stats/training loss"].append(epoch_loss)
+                run["stats/training accuracy"].append(epoch_acc)
 
             if phase == 'val':
-                run["validation loss"].append(epoch_loss)
-                run["validation accuracy"].append(epoch_acc)
+                run["stats/validation loss"].append(epoch_loss)
+                run["stats/validation accuracy"].append(epoch_acc)
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
@@ -484,7 +491,7 @@ model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, e
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('second.pt')  # Save
+model_scripted.save('training_data2.pt')  # Save
 
 # **********************************************************************************************************************
 # Create and view statistics for the model
@@ -528,13 +535,14 @@ plt.savefig('confusion_matrix.png')
 # plt.show()
 # **********************************************************************************************************************
 
-# Export to Neptune
+# Export logs to Neptune
 run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
 run["val/conf_matrix"].upload("confusion_matrix.png")  # Upload confusion matrix image to Neptune
 run["results/scores"] = stringify_unsupported(scores)
 run["results/precision"] = stringify_unsupported(precision)
 run["results/recall"] = stringify_unsupported(recall)
 run["results/F1"] = stringify_unsupported(f1)
+run["data/saved_model"].upload("training_data2.pt")  # Upload saved model to Neptune
 
 # Finish export to Neptune
 run.stop()
