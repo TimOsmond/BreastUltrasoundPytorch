@@ -53,13 +53,14 @@ def convert_dicom(dcm_path, new_image_path):
 
         # Create the new folder if it doesn't exist
         Path(new_image_path).mkdir(parents=True, exist_ok=True)
+        # Save the image
         cv2.imwrite(os.path.join(new_image_path, image), pixel_array_numpy)
         if n % 50 == 0:
             print('{} image converted'.format(n))
 
 
 if convert == "Y":
-    data_dir = input("Enter the path to the dataset folder: ")
+    data_dir = input("Enter the path to the DICOM images folder: ")
 
     # Specify the .dcm folder path
     train_normal = data_dir + "/train/normal"
@@ -108,7 +109,7 @@ print("Torchvision Version: ", torchvision.__version__)
 print("*" * 104)
 print(f"Check settings for optimizer ({OPTIMIZER}), momentum ({MOMENTUM}) and learning rate ({LEARNING_RATE})")
 print("*" * 104)
-print("\n1. resnet 18\n2. resnet 152\n3. alexnet\n4. vgg11\n5. squeezenet v1\n6. densenet 121\n7. inception v3\n")
+print("\n1. resnet 18\n2. resnet 152\n3. alexnet\n4. vgg 11\n5. squeezenet v1\n6. densenet 121\n7. inception v3\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
     model_name = "resnet18"
@@ -134,17 +135,20 @@ else:
 
 # Top level data_mammogram directory. Format of the directory conforms must be same as the image folder structure
 print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Trained on ROI mammogram images, tested on "
-      "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n")
-extraction_method = input("Enter the image training type required: ")
-if extraction_method == "1":
+      "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n4. Test model on insects dataset\n")
+training_method = input("Enter the image training type required: ")
+if training_method == "1":
     data_dir = "data_mammogram/mammogram/converted_images"
     num_classes = 2
-elif extraction_method == "2":
+elif training_method == "2":
     # DICOM medical images
     data_dir = "data_mammogram/mgroi/converted_images"
     num_classes = 2
-elif extraction_method == "3":
+elif training_method == "3":
     data_dir = "data_ultrasound"
+    num_classes = 2
+elif training_method == "4":
+    data_dir = "hymenoptera_data"
     num_classes = 2
 else:
     exit()
@@ -163,17 +167,51 @@ elif extraction_method == "2":
 else:
     exit()
 
+
 # Start Neptune run to log data_mammogram
-run = neptune.init_run(
-    project="tim-osmond/Retrain-ROI-MG-Test-ROI-MG",
-    api_token=api,
-)
+
+def load_neptune_run(project_folder):
+    global run
+    run = neptune.init_run(
+        project=project_folder,
+        api_token=api,
+    )
+
+
+# Save data to correct Neptune project
+if training_method == 1 and extraction_method == "1":
+    load_neptune_run("tim-osmond/FTMG")
+
+elif training_method == 1 and extraction_method == "2":
+    load_neptune_run("tim-osmond/FEFMG")
+
+elif training_method == 2 and extraction_method == "1":
+    load_neptune_run("tim-osmond/FTROI")
+
+elif training_method == 2 and extraction_method == "2":
+    load_neptune_run("tim-osmond/FEROI")
+
+elif training_method == 3 and extraction_method == "1":
+    load_neptune_run("tim-osmond/FTUS")
+
+elif training_method == 3 and extraction_method == "2":
+    load_neptune_run("tim-osmond/FEUS")
+
+elif training_method == 4 and extraction_method == "1":
+    load_neptune_run("tim-osmond/FTTEST")
+
+elif training_method == 4 and extraction_method == "2":
+    load_neptune_run("tim-osmond/FETEST")
+
+else:
+    print("Error: No project folder found")
+    exit()
 
 # Neptune parameters to log
 params = {
     "epochs": num_epochs,
     "model name": model_name,
-    "data_mammogram directory": data_dir,
+    "data directory": data_dir,
     "batch size": batch_size,
     "feature extract": feature_extract,
     # Neptune does not support using static names so added as run commands as work around
@@ -193,22 +231,20 @@ run["parameters"] = params
 # performing model (in terms of validation accuracy), and at the end of training returns the best performing model.
 # After each epoch, the training and validation accuracies are printed.
 
-# TODO check why epochs=25
-def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inception=False):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_inception=False):
     since = time.time()
     val_acc_history = []
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
-    for epoch in range(epochs):
-        print('\nEpoch {}/{}'.format(epoch + 1, epochs))
+    for epoch in range(num_epochs):
+        print('\nEpoch {}/{}'.format(epoch + 1, num_epochs))
         print('*' * 10)
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
                 model.train()  # Set model to training mode
-
             else:
                 model.eval()  # Set model to evaluate mode
 
@@ -240,6 +276,11 @@ def train_model(model, dataloaders, criterion, optimizer, epochs=25, is_inceptio
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
                     _, preds = torch.max(outputs, 1)
+
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
 
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
@@ -365,7 +406,7 @@ def set_parameter_requires_grad(model, feature_extracting):
 # Check out the printed model architecture of the reshaped network and make sure the number of output features is the
 # same as the number of classes in the dataset.
 
-def initialize_model(model_name, num_classes, feature_extract, use_pretrained):
+def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
     # Initialize these variables which will be set in this if statement. Each of these
     # variables is model specific.
     model_ft = None
@@ -375,7 +416,6 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained):
         # Resnet18
         # model_ft = models.resnet18(pretrained=use_pretrained) # deprecated
         model_ft = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
@@ -513,12 +553,12 @@ criterion = LOSS_FUNCTION()
 # necessary to tune for each model separately.
 
 # Train and evaluate
-model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
+model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, num_epochs=num_epochs,
                              is_inception=(model_name == "inception"))
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
-model_scripted.save('first.pt')  # Save
+model_scripted.save('training_data.pt')  # Save trained model
 
 # **********************************************************************************************************************
 # Create and view statistics for the model
@@ -548,7 +588,7 @@ print()
 
 label2class = {0: 'negative', 1: 'positive'}
 
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(15, 15))
 sns.set(font_scale=1.8)
 
 class_names = list(label2class.values())
@@ -559,16 +599,16 @@ heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='ri
 plt.ylabel('True label')
 plt.xlabel('Predicted label')
 plt.savefig('confusion_matrix.png')
-# plt.show()
 # **********************************************************************************************************************
 
-# Export to Neptune
+# Export logs to Neptune
 run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
 run["val/conf_matrix"].upload("confusion_matrix.png")  # Upload confusion matrix image to Neptune
 run["results/scores"] = stringify_unsupported(scores)
 run["results/precision"] = stringify_unsupported(precision)
 run["results/recall"] = stringify_unsupported(recall)
 run["results/F1"] = stringify_unsupported(f1)
+run["data/saved_model"].upload("training_data.pt")  # Upload saved model to Neptune
 
 # Finish export to Neptune
 run.stop()
