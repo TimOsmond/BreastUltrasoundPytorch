@@ -151,6 +151,7 @@ elif training_method == "4":
     data_dir = "hymenoptera_data"
     num_classes = 2
 else:
+    print("Error finding image folder")
     exit()
 
 batch_size = int(input("Enter batch size: "))
