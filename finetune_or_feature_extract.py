@@ -291,12 +291,12 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
             # Neptune stats
             if phase == 'train':
-                run["stats/training loss"].append(epoch_loss)
-                run["stats/training accuracy"].append(epoch_acc)
+                run["training loss"].append(epoch_loss)
+                run["training accuracy"].append(epoch_acc)
 
             if phase == 'val':
-                run["stats/validation loss"].append(epoch_loss)
-                run["stats/validation accuracy"].append(epoch_acc)
+                run["validation loss"].append(epoch_loss)
+                run["validation accuracy"].append(epoch_acc)
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
