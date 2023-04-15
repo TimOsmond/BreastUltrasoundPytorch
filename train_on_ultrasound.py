@@ -70,7 +70,7 @@ print()
 load_model_name = "training_data1.pt"
 print(f"Model {load_model_name} loaded")
 print()
-print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg11\n5. squeezenet\n6. densenet\n7. inception\n")
+print("\n1. resnet18\n2. resnet152\n3. alexnet\n4. vgg11\n5. squeezenet\n6. densenet\n7. inceptionV3\n")
 extraction_method = input("Enter the model you want to train: ")
 if extraction_method == "1":
     model_name = "resnet18"
@@ -103,7 +103,7 @@ elif extraction_method == "6":
     model_details = torch.jit.load(load_model_name)
     model.eval()
 elif extraction_method == "7":
-    model_name = "inceptionV3"
+    model_name = "inception_v3"
     model = models.inception_v3()
     model_details = torch.jit.load(load_model_name)
     model.eval()
@@ -391,7 +391,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained):
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
-    elif model_name == "inceptionV3":
+    elif model_name == "inception_v3":
         # Inception v3
         # Be careful, expects (299,299) sized images and has auxiliary output
         model_ft = models.inception_v3(weights=Inception_V3_Weights.DEFAULT)
@@ -487,7 +487,7 @@ criterion = LOSS_FUNCTION()
 
 # Train and evaluate
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, epochs=num_epochs,
-                             is_inception=(model_name == "inception"))
+                             is_inception=(model_name == "inception_v3"))
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
@@ -521,7 +521,7 @@ print()
 
 label2class = {0: 'negative', 1: 'positive'}
 
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(15, 15))
 sns.set(font_scale=1.8)
 
 class_names = list(label2class.values())

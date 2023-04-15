@@ -124,7 +124,7 @@ elif extraction_method == "5":
 elif extraction_method == "6":
     model_name = "densenet121"
 elif extraction_method == "7":
-    model_name = "inception"
+    model_name = "inception_v3"
 else:
     exit()
 
@@ -462,7 +462,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
-    elif model_name == "inceptionV3":
+    elif model_name == "inception_v3":
         # Inception v3
         # Be careful, expects (299,299) sized images and has auxiliary output
         model_ft = models.inception_v3(weights=Inception_V3_Weights.DEFAULT)
@@ -522,6 +522,7 @@ dataloaders_dict = {
 # To verify this, check out the printed parameters to learn. When fine-tuning, this list should be long and include
 # all the model parameters. However, when feature extracting this list should be short and only include the
 # weights and biases of the reshaped layers.
+
 # Send the model to GPU
 model_ft = model_ft.to(device)
 
@@ -555,7 +556,7 @@ criterion = LOSS_FUNCTION()
 
 # Train and evaluate
 model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, num_epochs=num_epochs,
-                             is_inception=(model_name == "inception"))
+                             is_inception=(model_name == "inception_v3"))
 
 # Save the current model
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
