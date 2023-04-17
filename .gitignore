@@ -6,3 +6,5 @@ confusion_matrix.png
 neptune_login.py
 training_data1.pt
 training_data2.pt
+test_confusion_matrix.png
+us_test_images/
