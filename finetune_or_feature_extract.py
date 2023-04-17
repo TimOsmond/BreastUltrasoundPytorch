@@ -134,11 +134,11 @@ else:
 # If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
 
 # Top level data_mammogram directory. Format of the directory conforms must be same as the image folder structure
-print("\n1. Trained on full mammogram images, tested on full mammogram\n2. Trained on ROI mammogram images, tested on "
-      "ROI mammogram\n3. Trained on ultrasound images, tested on ultrasound\n4. Test model on insects dataset\n")
+print("\n1. Trained on full mammogram images, tested on full mammogram images\n2. Trained on ROI mammogram images, tested on "
+      "ROI mammogram images\n3. Trained on ultrasound images, tested on ultrasound\n4. us_test_images model on insects dataset\n")
 training_method = input("Enter the image training type required: ")
 if training_method == "1":
-    data_dir = "data_mammogram/mammogram/converted_images"
+    data_dir = "data_mammogram/full_mg/converted_images"
     num_classes = 2
 elif training_method == "2":
     # DICOM medical images
@@ -170,7 +170,6 @@ else:
 
 
 # Start Neptune run to log data_mammogram
-
 def load_neptune_run(project_folder):
     global run
     run = neptune.init_run(
@@ -562,7 +561,7 @@ model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer, n
 model_scripted = torch.jit.script(model_ft)  # Export to TorchScript
 model_scripted.save('training_data1.pt')  # Save trained model
 
-# **********************************************************************************************************************
+#######################################################################################################################
 # Create and view statistics for the model
 confusion_matrix = torch.zeros(num_classes, num_classes)
 with torch.no_grad():
@@ -595,13 +594,14 @@ sns.set(font_scale=1.8)
 
 class_names = list(label2class.values())
 df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
-heatmap = sns.heatmap(df_cm, annot=True, fmt="d")
+heatmap = sns.heatmap(df_cm, annot=True, cmap=plt.cm.Reds, fmt="")
 heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
 heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
-plt.ylabel('True label')
+plt.title("Confusion Matrix")
 plt.xlabel('Predicted label')
+plt.ylabel('True label')
 plt.savefig('confusion_matrix.png')
-# **********************************************************************************************************************
+#######################################################################################################################
 
 # Export logs to Neptune
 run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
