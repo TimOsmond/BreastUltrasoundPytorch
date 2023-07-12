@@ -68,7 +68,7 @@ run["parameters"] = params
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load the TorchScript model
-model = torch.jit.load('saved_model.pt').to(device)
+model = torch.jit.load('training_data1.pt').to(device)
 model.eval()
 
 # Define the image transformations

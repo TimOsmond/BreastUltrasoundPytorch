@@ -31,16 +31,8 @@ from neptune_login import api_token  # for neptune
 
 api = api_token
 
-LOSS_FUNCTION = nn.CrossEntropyLoss
-OPTIMIZER = optim.SGD
-# Optimizer momentum - momentum original 0.9
-MOMENTUM = 0.9
-# learning rate original 0.001
-# https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
-LEARNING_RATE = 0.001
-
-# Convert dicom images from the dataset to jpg or png format
-convert = input("Convert DICOM images to PNG format? Enter Y or N: ").upper()
+# Convert dicom images from the dataset to jpg or png format (uncomment)
+# convert = input("Convert DICOM images to PNG format? Enter Y or N: ").upper()
 
 
 def convert_dicom(dcm_path, new_image_path):
@@ -58,31 +50,50 @@ def convert_dicom(dcm_path, new_image_path):
         if n % 50 == 0:
             print('{} image converted'.format(n))
 
+# uncomment to convert DICOM images
+# if convert == "Y":
+#     data_dir = input("Enter the path to the DICOM images folder: ")
+#
+#     # Specify the .dcm folder path
+#     train_normal = data_dir + "/train/normal"
+#     # Specify the output jpg/png folder path
+#     path_train_normal = data_dir + "/converted_images/train/normal"
+#     convert_dicom(train_normal, path_train_normal)
+#
+#     train_malignant = data_dir + "/train/malignant"
+#     path_train_malignant = data_dir + "/converted_images/train/malignant"
+#     convert_dicom(train_malignant, path_train_malignant)
+#
+#     val_normal = data_dir + "/val/normal"
+#     path_val_normal = data_dir + "/converted_images/val/normal"
+#     convert_dicom(val_normal, path_val_normal)
+#
+#     val_malignant = data_dir + "/val/malignant"
+#     path_val_malignant = data_dir + "/converted_images/val/malignant"
+#     convert_dicom(val_malignant, path_val_malignant)
+#
+#     print("DICOM images converted to PNG format. Re-run code for training and validation.")
+#     exit()
 
-if convert == "Y":
-    data_dir = input("Enter the path to the DICOM images folder: ")
-
-    # Specify the .dcm folder path
-    train_normal = data_dir + "/train/normal"
-    # Specify the output jpg/png folder path
-    path_train_normal = data_dir + "/converted_images/train/normal"
-    convert_dicom(train_normal, path_train_normal)
-
-    train_malignant = data_dir + "/train/malignant"
-    path_train_malignant = data_dir + "/converted_images/train/malignant"
-    convert_dicom(train_malignant, path_train_malignant)
-
-    val_normal = data_dir + "/val/normal"
-    path_val_normal = data_dir + "/converted_images/val/normal"
-    convert_dicom(val_normal, path_val_normal)
-
-    val_malignant = data_dir + "/val/malignant"
-    path_val_malignant = data_dir + "/converted_images/val/malignant"
-    convert_dicom(val_malignant, path_val_malignant)
-
-    print("DICOM images converted to PNG format. Re-run code for training and validation.")
+# Choose and optimizer
+print("Which optimizer should be used?\n1. Adam\n2. RMSprop\n3. SGDM:")
+optimizer_choice = input("Choose the optimizer: ")
+if optimizer_choice == "1":
+    chosen_optimizer = optim.Adam
+elif optimizer_choice == "2":
+    chosen_optimizer = optim.RMSprop
+elif optimizer_choice == "3":
+    chosen_optimizer = optim.SGD
+else:
     exit()
 
+LOSS_FUNCTION = nn.CrossEntropyLoss
+OPTIMIZER = chosen_optimizer
+# Optimizer momentum - momentum original 0.9
+MOMENTUM = 0.9
+# learning rate original 0.001
+# https://www.cs.toronto.edu/~lczhang/360/lec/w02/training.html
+LEARNING_RATE = 0.001
 
 # Clear memory
 def free_gpu_cache():
@@ -544,7 +555,10 @@ else:
             print("\t", name)
 
 # Observe that all parameters are being optimized
-optimizer = OPTIMIZER(params_to_update, lr=LEARNING_RATE, momentum=MOMENTUM)
+if OPTIMIZER == optim.RMSprop or OPTIMIZER == optim.SGD:
+    optimizer = OPTIMIZER(params_to_update, lr=LEARNING_RATE, momentum=MOMENTUM)
+if OPTIMIZER == optim.Adam:
+    optimizer = OPTIMIZER(params_to_update, lr=LEARNING_RATE)
 
 # Set up the loss fxn
 criterion = LOSS_FUNCTION()
