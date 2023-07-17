@@ -590,10 +590,16 @@ with torch.no_grad():
         for t, p in zip(labels.view(-1), preds.view(-1)):
             confusion_matrix[t.long(), p.long()] += 1
 
-        #print the images to check location in matrix
+        # #print the images to check location in matrix and save images
         # import numpy as np
         # mean = [0.485, 0.456, 0.406]  # Mean values used for normalization
         # std = [0.229, 0.224, 0.225]  # Standard deviation values used for normalization
+        #
+        # # Create a folder for each label if it doesn't exist
+        # labels_folder = ["label_0", "label_1"]  # Replace with your actual label names
+        # for folder in labels_folder:
+        #     os.makedirs(folder, exist_ok=True)
+        #
         # for j in range(inputs.size(0)):
         #     confusion_matrix[labels[j].long(), preds[j].long()] += 1
         #     image = inputs[j].cpu().numpy().transpose((1, 2, 0))
@@ -603,7 +609,14 @@ with torch.no_grad():
         #     plt.imshow(image)
         #     plt.title(f"True label: {labels[j].item()}, Predicted label: {preds[j].item()}")
         #     plt.axis("off")
-        #     plt.show()
+        #
+        #     # Save the image to the corresponding label folder
+        #     label_folder = labels_folder[labels[j].item()]  # Replace with the correct way to get the label folder
+        #     filename = f"image_{j}.png"
+        #     save_path = os.path.join(label_folder, filename)
+        #     plt.savefig(save_path)
+        #
+        #     # plt.show()
 
 
 # scores = pd.DataFrame(index=['positive', 'negative', 'average'], columns=['precision', 'recall', 'F1-Score'])
@@ -649,7 +662,7 @@ sns.set(font_scale=1.8)
 
 class_names = list(label2class.values())
 df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
-heatmap = sns.heatmap(df_cm, annot=True, cmap=plt.cm.Reds, fmt="")
+heatmap = sns.heatmap(df_cm, annot=True, cmap=plt.cm.Blues, fmt="")
 heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
 heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
 plt.title("Confusion Matrix")
