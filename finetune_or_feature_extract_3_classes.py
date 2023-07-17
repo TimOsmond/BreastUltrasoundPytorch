@@ -3,11 +3,9 @@ Using a menu structure to command the use of CNN models in training and validati
 Training can be changed from fine-tuning to feature extraction and batch number and epochs entered.
 Neptune.ai is utilised for collecting data and drawing graphs.
 """
-from __future__ import division
-from __future__ import print_function
 
-import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
+from __future__ import print_function
+from __future__ import division
 import torch  # for pytorch
 import torch.nn as nn  # for neural network
 import torch.optim as optim  # for optimizer
@@ -78,7 +76,7 @@ def convert_dicom(dcm_path, new_image_path):
 #     exit()
 
 # Choose and optimizer
-print("Which optimizer should be used?\n1. Adam\n2. RMSprop\n3. SGDM")
+print("Which optimizer should be used?\n1. Adam\n2. RMSprop\n3. SGDM:")
 optimizer_choice = input("Choose the optimizer: ")
 if optimizer_choice == "1":
     chosen_optimizer = optim.Adam
@@ -152,17 +150,17 @@ print("\n1. Trained on full mammogram images, tested on full mammogram images\n2
 training_method = input("Enter the image training type required: ")
 if training_method == "1":
     data_dir = "data_mammogram/full_mg/converted_images"
-    num_classes = 2
+    num_classes = int(input("How many classes: "))
 elif training_method == "2":
     # DICOM medical images
     data_dir = "data_mammogram/mgroi/converted_images"
-    num_classes = 2
+    num_classes = int(input("How many classes: "))
 elif training_method == "3":
     data_dir = "data_ultrasound"
-    num_classes = 2
+    num_classes = int(input("How many classes: "))
 elif training_method == "4":
     data_dir = "hymenoptera_data"
-    num_classes = 2
+    num_classes = int(input("How many classes: "))
 else:
     print("Error finding image folder")
     exit()
@@ -586,82 +584,45 @@ with torch.no_grad():
         classes = labels.to(device)
         outputs = model_ft(inputs)
         _, preds = torch.max(outputs, dim=1)
-        # iterate over true and predicted labels
         for t, p in zip(labels.view(-1), preds.view(-1)):
             confusion_matrix[t.long(), p.long()] += 1
 
-        #print the images to check location in matrix
-        # import numpy as np
-        # mean = [0.485, 0.456, 0.406]  # Mean values used for normalization
-        # std = [0.229, 0.224, 0.225]  # Standard deviation values used for normalization
-        # for j in range(inputs.size(0)):
-        #     confusion_matrix[labels[j].long(), preds[j].long()] += 1
-        #     image = inputs[j].cpu().numpy().transpose((1, 2, 0))
-        #     image = std * image + mean
-        #     image = np.clip(image, 0, 1)
-        #
-        #     plt.imshow(image)
-        #     plt.title(f"True label: {labels[j].item()}, Predicted label: {preds[j].item()}")
-        #     plt.axis("off")
-        #     plt.show()
+scores = pd.DataFrame(index=['Benign', 'Malignant', 'Normal'], columns=['F1-Score'])
+for i, label in enumerate(["Benign", "Malignant", 'Normal']):
+    # label = f'{i+1}'
+    precision = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
+    recall = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
+    f1 = (2 * precision * recall) / (precision + recall)
+    scores.loc[label, 'Precision'] = precision
+    scores.loc[label, 'Recall'] = recall
+    scores.loc[label, 'F1-Score'] = f1
 
+scores.loc['Average'] = scores.mean().values
 
-# scores = pd.DataFrame(index=['positive', 'negative', 'average'], columns=['precision', 'recall', 'F1-Score'])
+print(scores)
+print()
 
-# for i, label in enumerate(["positive", "negative"]):
-recall = confusion_matrix[0, 0] / confusion_matrix[0].sum()
-precision= confusion_matrix[0, 0] / confusion_matrix[:, 0].sum()
-f1 = (2 * precision * recall) / (precision + recall)
-
-    # scores.loc[label, 'precision'] = precision.item()
-    # scores.loc[label, 'recall'] = recall.item()
-    # scores.loc[label, 'F1-Score'] = f1.item()
-
-# scores.loc['average'] = scores.mean()
-
-print("\nOverall...")
-# print(scores)
-print(f'recall: {recall}\nprecision: {precision}\nF1: {f1}\n')
-
-# 0 is malignant or diseased, 1 is normal
-label2class = {0: 'positive', 1: 'negative'}
-
-
-
-# scores = pd.DataFrame(index=['negative', 'positive', 'average'], columns=['precision', 'recall', 'F1-Score'])
-# for i, label in enumerate(["negative", "positive"]):
-#     p = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
-#     r = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
-#     scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
-# scores.loc['average'] = scores.mean().values
-# for i, label in enumerate(["positive"]):
-#     precision = scores.loc[label, 'precision'] = (confusion_matrix[i, i] / confusion_matrix[i].sum()).item()
-#     recall = scores.loc[label, 'recall'] = (confusion_matrix[i, i] / confusion_matrix[:, i].sum()).item()
-#     f1 = scores.loc[label, 'F1-Score'] = (2 * p * r) / (p + r)
-# print(f"\nOverall...\nPrecision: {precision:.2f}\nRecall: {recall:.2f}\nF1: {f1:.2f}\n")
-# print(scores)
-# print()
-#
 # label2class = {0: 'negative', 1: 'positive'}
 
 plt.figure(figsize=(15, 15))
 sns.set(font_scale=1.8)
 
-class_names = list(label2class.values())
-df_cm = pd.DataFrame(confusion_matrix, index=class_names, columns=class_names).astype(int)
-heatmap = sns.heatmap(df_cm, annot=True, cmap=plt.cm.Reds, fmt="")
-heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=15)
-heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=15)
+class_names = ['Benign', 'Malignant', 'Normal']
+df_cm = pd.DataFrame(confusion_matrix.numpy(), index=class_names, columns=class_names).astype(int)
+
+plt.figure(figsize=(8, 6))
+sns.set(font_scale=1.4)
+sns.heatmap(df_cm, annot=True, cmap="Blues", fmt="d")
 plt.title("Confusion Matrix")
-plt.xlabel('Predicted label')
-plt.ylabel('True label')
+plt.xlabel("Predicted Class")
+plt.ylabel("True Class")
 plt.savefig('confusion_matrix.png')
 #######################################################################################################################
 
 # Export logs to Neptune
 run["results/confusion_matrix"] = stringify_unsupported(confusion_matrix)
 run["val/conf_matrix"].upload("confusion_matrix.png")  # Upload confusion matrix image to Neptune
-# run["results/scores"] = stringify_unsupported(scores)
+run["results/scores"] = stringify_unsupported(scores)
 run["results/precision"] = stringify_unsupported(precision)
 run["results/recall"] = stringify_unsupported(recall)
 run["results/F1"] = stringify_unsupported(f1)
